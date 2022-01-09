@@ -1,0 +1,18 @@
+router bgp {{ item.as | int }}
+{% if item.vrf is not defined %}
+  router-id {{ item.bgp_router_id }}
+  log-neighbor-changes
+{% if item.maximum_paths is defined and item.maximum_paths | int > 1 %}
+   address-family ipv4 unicast
+     maximum-paths {{ item.maximum_paths | int }}
+{% endif %}
+ !
+{% else %}
+  vrf {{ item.vrf }}
+   router-id {{ item.bgp_router_id }}
+   log-neighbor-changes
+{% if item.maximum_paths is defined and item.maximum_paths | int > 1 %}
+   address-family ipv4 unicast
+     maximum-paths {{ item.maximum_paths | int }}
+{% endif %}
+{% endif %}

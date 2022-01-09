@@ -1,0 +1,88 @@
+hostname {{ item.hostname }}
+!
+vrf definition {{ item.mgmt_vrf }}
+ address-family ipv4 uni
+!
+no ip domain lookup
+!
+int {{ item.mgmt_int }}
+{% if item.device_type == 'switch' %}
+ no switchport
+{% endif %}
+ vrf forwarding {{ item.mgmt_vrf }}
+ ip address {{ item.mgmt_ip | ansible.netcommon.ipaddr('address')}} {{ item.mgmt_ip | ansible.netcommon.ipaddr('netmask') }}
+ no shutdown
+!
+ip route vrf {{ item.mgmt_vrf }} 0.0.0.0 0.0.0.0 {{ item.mgmt_gw }}
+!
+username {{ item.username }} privilege 15 algorithm-type scrypt secret {{ item.password }}
+!
+{% if item.enable is defined %}
+enable algorithm-type scrypt secret  {{ item.enable }}
+{% endif %}
+!
+{% if item.domain is defined %}
+ip domain name {{ item.domain }}
+crypto key generate rsa modulus 2048
+{% endif %}
+!
+aaa new-model
+aaa authentication login default local
+aaa authorization exec default local
+!
+service nagle
+service tcp-keepalives-in
+service tcp-keepalives-out
+service timestamps debug datetime msec localtime show-timezone
+service timestamps log datetime msec localtime show-timezone
+service password-encryption
+service sequence-numbers
+password encryption aes
+!
+no ip http secure-server
+no ip finger
+no service pad
+no ip http server
+no ip bootp server
+!
+{% if item.device_type == 'switch' %}
+vtp mode off
+!
+{% endif %}
+#access-list
+ip access-list standard LINE-V4
+ permit 10.0.0.0 0.255.255.255
+ permit 172.16.0.0 0.15.255.255
+ permit 192.168.0.0 0.0.255.255
+!
+line vty 0 15
+ access-class LINE-V4 in vrf-also
+ transport output none
+ transport input ssh
+!
+ip ssh version 2
+!
+line con 0
+ logging synchronous
+!
+{% if item.ntp is defined %}
+{% for i in item.ntp.split(',') %}
+ntp server vrf {{ item.mgmt_vrf }} {{ i.lstrip() }}
+{% endfor %}
+!
+ip access-list standard  NTP-V4
+{% for i in item.ntp.split(',') %}
+ permit host {{ i.lstrip() }}
+{% endfor %}
+!
+ntp access-group peer NTP-V4
+{% endif %}
+!
+{% if item.dns is defined %}
+{% for i in item.dns.split(',') %}
+ip name-server vrf {{ item.mgmt_vrf }} {{ i.lstrip() }}
+{% endfor %}
+{% endif %}
+!
+do wr
+!

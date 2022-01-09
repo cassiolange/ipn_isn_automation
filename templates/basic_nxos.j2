@@ -1,0 +1,56 @@
+hostname {{ item.hostname }}
+!
+no ip domain-lookup
+!
+interface {{ item.mgmt_int }}
+ ip address {{ item.mgmt_ip }}
+ no shutdown
+!
+no password strength-check
+!
+vrf context {{ item.mgmt_vrf }}
+ ip route  0.0.0.0 0.0.0.0 {{ item.mgmt_gw }}
+!
+{% if item.username is defined and item.password is defined %}
+username {{ item.username }} password {{ item.password }} role network-admin
+{% endif %}
+!
+ip access-list LINE-V4
+ 10 permit tcp 10.0.0.0 0.255.255.255 any eq 22
+ 20 permit tcp 172.16.0.0 0.15.255.255 any eq 22
+ 30 permit tcp 192.168.0.0 0.0.255.255 any eq 22
+!
+line vty
+ access-class LINE-V4 in
+!
+system default switchport
+!
+system default switchport shutdown
+!
+clock timezone BRT -3 0
+!
+{% if item.ntp is defined %}
+{% for i in item.ntp.split(',') %}
+ntp server {{ i.lstrip() }} use-vrf management
+{% endfor %}
+!
+ip access-list NTP-V4
+{% for i in item.ntp.split(',') %}
+ permit ip host {{ i.lstrip() }} any
+{% endfor %}
+!
+ntp access-group peer NTP-V4
+{% endif %}
+!
+{% if item.domain is defined %}
+ip domain-name {{ item.domain }}
+{% endif %}
+!
+{% if item.dns is defined %}
+{% for i in item.dns.split(',') %}
+ip name-server {{ i.lstrip() }} use-vrf management
+{% endfor %}
+{% endif %}
+!
+copy running-config startup-config
+!

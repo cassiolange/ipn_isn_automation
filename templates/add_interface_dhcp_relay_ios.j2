@@ -1,0 +1,4 @@
+{% for i in item.value.relay %}
+interface {{ item.key }}
+ ip helper-address {{ i }}
+{% endfor %}

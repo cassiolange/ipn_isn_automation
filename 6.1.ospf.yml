@@ -1,0 +1,215 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Configure OSPF
+  gather_facts: false
+  hosts:  all
+  tasks:
+
+    - name: Create OSPF Proccess (IOS)
+      cisco.ios.ios_config:
+        src: create_ospf_processes_ios.j2
+      loop: "{{ ospf }}"
+      when: ospf is defined and item.ospf_id is defined and item.device_os == "IOS_XE"
+
+    - name: Add Loopbacks to the OSPF Proccess (IOS)
+      cisco.ios.ios_ospf_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id }}"
+            address_family:
+              - afi: ipv4
+                process:
+                  id: "{{ item.ospf_id }}"
+                  area_id: "{{ item.ospf_area | int }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.ospf_id is defined and item.device_os == "IOS_XE"
+
+    - name: Add Interfaces to the OSPF Proccess (IOS)
+      cisco.ios.ios_ospf_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}"
+            address_family:
+              - afi: ipv4
+                process:
+                  id: "{{ item.ospf_id | int }}"
+                  area_id: "{{ item.ospf_area | int }}"
+                network:
+                  broadcast: "{{ true if item.ospf_link_type == 'broadcast' else omit }}"
+                  point_to_point: "{{ true if item.ospf_link_type == 'point-to-point' else omit }}"
+                authentication:
+                  message_digest: "{{ true if item.ospf_password is defined else omit }}"
+                bfd: "{{ true if item.bfd == 'Yes' and item.ospf_passive_interface =='No'  else omit }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.ospf_id is defined and item.device_os == "IOS_XE"
+
+    - name: Set Interface OSPF Authentication (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - ip ospf message-digest-key 1 md5 7 {{ item.ospf_password }}
+        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'interface %s' % item.interface }}"
+      loop: "{{ interfaces }}"
+      when: loopbacks is defined and item.ospf_password is defined and item.device_os == "IOS_XE"
+
+    - name: Set Interface as no passive interface (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'no passive-interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'no passive-interface %s' % item.interface }}"
+        parents: "{{ 'router ospf %s vrf %s' % (item.ospf_id, item.vrf) if item.vrf is defined else 'router ospf %s' % item.ospf_id }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.ospf_passive_interface is defined and item.ospf_passive_interface == 'No' and item.device_os == "IOS_XE"
+
+    - name: Configure Interface BFD (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - bfd interval {{ item.bfd_interval | int }} min_rx {{ item.bfd_interval | int }} multiplier 3
+          - "{{ 'ip ospf bfd' if item.ospf_passive_interface == 'No'}}"
+        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'interface %s' % item.interface }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.bfd is defined and item.device_os == "IOS_XE"
+
+    - name: save running to startup when modified
+      cisco.ios.ios_config:
+        save_when: modified
+      when: inventory_hostname in groups['routers_ios'] or inventory_hostname in groups['switches_ios']
+
+    - name: Create OSPF Proccess (NXOS)
+      cisco.nxos.nxos_ospfv2:
+        config:
+          processes:
+            - process_id: "{{ item.ospf_id }}"
+              router_id: "{{ item.ospf_router_id }}"
+              max_metric:
+                router_lsa:
+                  on_startup:
+                    set: true
+                    wait_period: 110
+              auto_cost:
+                reference_bandwidth: "{{ item.reference_bandwidth if item.reference_bandwidth is defined  }}"
+                unit:  "{{ 'Mbps' if item.reference_bandwidth is defined }}"
+              passive_interface:
+                default: yes
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.ospf_id is defined and item.vrf is not defined and device_os == "NXOS"
+
+    - name: Create OSPF Proccess (NXOS) - VRF Based
+      cisco.nxos.nxos_ospfv2:
+        config:
+          processes:
+            - process_id: "{{ item.ospf_id }}"
+              vrfs:
+                - vrf: "{{ item.vrf if item.vrf is defined else omit }}"
+                  router_id: "{{ item.ospf_router_id }}"
+                  max_metric:
+                    router_lsa:
+                      on_startup:
+                        set: true
+                        wait_period: 110
+                  auto_cost:
+                    reference_bandwidth: "{{ item.reference_bandwidth if item.reference_bandwidth is defined }}"
+                    unit: "{{ 'Mbps' if item.reference_bandwidth is defined }}"
+                  capability:
+                    vrf_lite:
+                      set: "{{ 'yes' if item.vrf is defined else omit }}"
+                  passive_interface:
+                    default: yes
+      loop: "{{ ospf }}"
+      when: ospf is defined and item.ospf_id is defined and item.vrf is defined and item.device_os == "NXOS"
+
+    - name: Add Loopbacks to the OSPF Proccess (NXOS)
+      cisco.nxos.nxos_ospf_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id | int  }}"
+            address_family:
+              - afi: ipv4
+                processes:
+                  - process_id: "{{ item.ospf_id }}"
+                    area:
+                      area_id: "{{ '%s' % item.ospf_area | int  }}"
+                network: "{{ item.ospf_link_type if item.ospf_link_type is defined else omit}}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.ospf_id is defined and item.device_os == "NXOS"
+
+    - name: Add Interfaces to the OSPF Proccess With password (NXOS)
+      cisco.nxos.nxos_ospf_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}"
+            address_family:
+              - afi: ipv4
+                processes:
+                  - process_id: "{{ item.ospf_id }}"
+                    area:
+                      area_id: "{{ '0.0.0.%s' % item.ospf_area | int }}"
+                cost: "{{ item.ospf_cost | int if item.ospf_cost is defined else omit  }}"
+                authentication:
+                  message_digest: "{{ true if item.ospf_password is defined else omit }}"
+                message_digest_key:
+                  key_id: "{{ '1' if item.ospf_password is defined else omit }}"
+                  encryption: "{{ '3' if item.ospf_password is defined else omit }}"
+                  key: "{{ item.ospf_password if item.ospf_password is defined else omit }}"
+                network: "{{ item.ospf_link_type if item.ospf_link_type is defined }}"
+                passive_interface: "{{ item.ospf_passive_interface if item.ospf_passive_interface is defined and item.ospf_passive_interface == 'No' else omit }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.ospf_id is defined and item.ospf_password is defined and item.device_os == "NXOS"
+
+    - name: Add Interfaces to the OSPF Proccess without password (NXOS)
+      cisco.nxos.nxos_ospf_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}"
+            address_family:
+              - afi: ipv4
+                processes:
+                  - process_id: "{{ item.ospf_id }}"
+                    area:
+                      area_id: "{{ '0.0.0.%s' % item.ospf_area | int }}"
+                cost: "{{ item.ospf_cost | int  if item.ospf_cost is defined else omit  }}"
+                network: "{{ item.ospf_link_type if item.ospf_link_type is defined }}"
+                passive_interface: "{{ item.ospf_passive_interface if item.ospf_passive_interface is defined and item.ospf_passive_interface == 'No' else omit }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.ospf_id is defined and item.ospf_password is not defined and item.device_os == "NXOS"
+
+    - name: Configure Interface BFD (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - bfd interval {{ item.bfd_interval | int  }} min_rx {{ item.bfd_interval | int }} multiplier 3
+          - "{{ 'ip ospf bfd' if item.ospf_passive_interface is defined and item.ospf_passive_interface == 'No' }}"
+        parents: interface {{ '%s.%s' % (item.interface, item.dot1q | int) if item.dot1q is defined else item.interface }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.bfd == 'Yes' and item.device_os == "NXOS"
+
+    - name: save running to startup when modified  (NXOS)
+      cisco.nxos.nxos_config:
+        save_when: modified
+      when: inventory_hostname in groups['nxos']
+
+    - name: Create OSPF Proccess (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - router-id {{ item.ospf_router_id }}
+          - max-metric router-lsa on-startup 110
+          - "{{ 'auto-cost reference-bandwidth 100000' if item.bw is defined }}"
+          - passive enable
+          - "{{ 'capability vrf-lite' if item.vrf is defined }}"
+        parents: "{{ 'router ospf %s vrf %s' % (item.ospf_id, item.vrf) if item.vrf is defined else  'router ospf %s' % item.ospf_id }}"
+      loop: "{{ ospf }}"
+      when: ospf is defined and item.ospf_id is defined and item.device_os == "IOS_XR"
+
+    - name: Add Loopbacks to the OSPF Proccess (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - "{{ 'router ospf %s vrf %s area %s interface %s' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if item.vrf is defined else 'router ospf %s area %s interface %s' % (item.ospf_id, item.ospf_area, item.key) }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.ospf_id is defined and item.device_os == "IOS_XR"
+
+    - name: Add Interfaces to the OSPF Proccess, Set OSPF Authentication,, OSPF No passive interface and OSPF BFD(IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - "{{ 'router ospf %s vrf %s area %s interface %s' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if item.vrf is defined else 'router ospf %s area %s interface %s' % (item.ospf_id, item.ospf_area, item.key) }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s network %s' % (item.ospf_id, item.vrf, item.ospf_area, item.key, item.ospf_link_type) if item.vrf is defined else 'router ospf %s area %s interface %s network %s' % (item.ospf_id, item.ospf_area, item.key, item.ospf_link_type) }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s authentication message-digest' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if (item.vrf is defined and item.ospf_password is defined) else 'router ospf %s area %s interface %s authentication message-digest' % (item.ospf_id, item.ospf_area, item.key) if item.ospf_password is defined }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s message-digest-key 1 md5 encrypted %s' % (item.ospf_id, item.vrf, item.ospf_area, item.key, item.ospf_password) if (item.vrf is defined and item.ospf_password is defined) else 'router ospf %s area %s interface %s message-digest-key 1 md5 encrypted %s' % (item.ospf_id, item.ospf_area, item.key, item.ospf_password) if item.ospf_password is defined }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s bfd fast-detect' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if (item.vrf is defined and item.bfd == 'Yes' and item.ospf_passive_interface == 'No')else 'router ospf %s area %s interface %s bfd fast-detect' % (item.ospf_id, item.ospf_area, item.key) if (item.bfd == 'Yes' and item.ospf_passive_interface == 'No') }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s passive disable' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if (item.vrf is defined and item.ospf_passive_interface == 'No') else 'router ospf %s area %s interface %s passive disable' % (item.ospf_id, item.ospf_area, item.key) if item.ospf_passive_interface == 'No' }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s bfd minimum-interval %s' % (item.ospf_id, item.vrf, item.ospf_area, item.key, item.bfd_interval) if (item.vrf is defined and item.bfd == 'Yes' and item.ospf_passive_interface == 'No')else 'router ospf %s area %s interface %s bfd minimum-interval %s' % (item.ospf_id, item.ospf_area, item.key, item.bfd_interval) if (item.bfd == 'Yes' and item.ospf_passive_interface == 'No') }}"
+          - "{{ 'router ospf %s vrf %s area %s interface %s bfd multiplier 3' % (item.ospf_id, item.vrf, item.ospf_area, item.key) if (item.vrf is defined and item.bfd == 'Yes' and item.ospf_passive_interface == 'No')else 'router ospf %s area %s interface %s bfd multiplier 3' % (item.ospf_id, item.ospf_area, item.key) if (item.bfd == 'Yes' and item.ospf_passive_interface == 'No') }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.ospf_id is defined and item.device_os == "IOS_XR"

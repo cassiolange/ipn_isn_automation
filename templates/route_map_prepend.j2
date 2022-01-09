@@ -1,0 +1,6 @@
+route-map {{ item.name }} {{ item.action }} {{ item.order }}
+{% set prepend = namespace(as='') %}
+{% for i in range(item.prepend | int ) %}
+{% set prepend.as = prepend.as + item.as +' ' %}
+{% endfor %}
+ set as-path prepend {{ prepend.as }}

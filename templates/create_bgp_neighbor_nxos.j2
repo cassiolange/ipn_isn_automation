@@ -1,0 +1,40 @@
+router bgp {{ item.as | int }}
+{% if item.vrf is defined %}
+  vrf {{ item.vrf }}
+    neighbor {{ item.neighbor_ip_address }}
+{% if item.description is defined %}
+      description {{ item.description }}
+{% endif %}
+{% if item.remote_as is defined %}
+      remote-as {{ item.remote_as | int }}
+{% endif %}
+      address-family ipv4 unicast
+{% if item.as_override is defined and item.as_override == 'Yes'%}
+       as-override
+{% endif %}
+{% if item.bgp_peer_session_template is defined %}
+      inherit peer-session {{ item.bgp_peer_session_template }}
+{% endif %}
+{% if item.password is defined %}
+      password 3 {{ item.password }}
+{% endif %}
+{% if item.bfd is defined %}
+      bfd
+{% endif %}
+{% if item.inbound_route_map is defined %}
+      address-family ipv4 unicast
+        route-map {{ item.inbound_route_map }} in
+{% endif %}
+{% if item.outbound_route_map is defined %}
+      address-family ipv4 unicast
+        route-map {{ item.outbound_route_map }} out
+{% endif %}
+{% if item.advertise_map is defined and item.exit_map is defined %}
+      address-family ipv4 unicast
+        advertise-map {{ item.advertise_map }} exist-map {{ item.exit_map }}
+{% endif %}
+{% if item.bgp_peer_policy is defined %}
+      address-family ipv4 unicast
+        inherit peer-policy {{ item.bgp_peer_policy }} 1
+{% endif %}
+{% endif %}

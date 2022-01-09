@@ -1,0 +1,43 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Basic Management
+  gather_facts: false
+  hosts: all
+
+  tasks:
+
+    - name: Create inventory if not exist
+      file:
+        path: "{{ inventory_dir }}/scripts/{{ inventory_hostname }}"
+        state: directory
+
+    - name: Generate configuration files - Router and Switches (IOS)
+      template: src={{ inventory_dir }}/templates/basic_ios.j2 dest={{ inventory_dir }}//scripts//{{ inventory_hostname }}/basic.cfg
+      when: devices is defined and item.device_os == "IOS_XE"
+      loop: "{{ devices }} "
+
+    - name: Generate configuration files - Switches (NXOS)
+      template: src={{ inventory_dir }}/templates/basic_nxos.j2 dest={{ inventory_dir }}//scripts//{{ inventory_hostname }}/basic.cfg
+      when: devices is defined and item.device_os == "NXOS"
+      loop: "{{ devices }} "
+
+    - name: Generate configuration files - Switches (IOS_XR)
+      template: src={{ inventory_dir }}/templates/basic_ios_xr.j2 dest={{ inventory_dir }}//scripts//{{ inventory_hostname }}/basic.cfg
+      when: devices is defined and item.device_os == "IOS_XR"
+      loop: "{{ devices }}"
+
+    - name: Generate configuration files - Switches (NXOS)
+      template: src={{ inventory_dir }}/templates/basic_nxos.j2 dest={{ inventory_dir }}//scripts//{{ inventory_hostname }}/conf.{{ item.serial_number }}
+      when: devices is defined and item.device_os == "NXOS" and item.serial_number is defined
+      loop: "{{ devices }} "
+
+
+
+    #- name: Generate configuration files
+    #  debug: msg={{item}}
+    #  loop: "{{ groups['all'] }}"
+
+
+
+

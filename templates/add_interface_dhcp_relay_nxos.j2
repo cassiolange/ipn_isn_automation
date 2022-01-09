@@ -1,0 +1,10 @@
+{% for i in item.dhcp_relay.split(',')  %}
+{% if item.dot1q is defined   %}
+interface {{ item.interface }}.{{ item.dot1q | int  }}
+  ip dhcp relay address {{ i.lstrip() }}
+{% else %}
+interface {{ item.interface }}
+  ip dhcp relay address {{ i.lstrip() }}
+{% endif  %}
+{% endfor %}
+

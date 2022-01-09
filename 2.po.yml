@@ -1,0 +1,98 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Port-Channel Configuration
+  gather_facts: false
+  hosts: all
+  tasks:
+
+    - name: Create PO (IOS)
+      cisco.ios.ios_lag_interfaces:
+        config:
+          - name: "{{ item.port_channel_id }}"
+            members:
+            - member: "{{ item.interface }}"
+              mode: "{{ item.mode }}"
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == 'absent' else omit }}"
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "IOS_XE"
+
+    - name:  Enable PO and set description (IOS)
+      cisco.ios.ios_interfaces:
+        config:
+          - name:  "{{ 'port-channel%s' % item.port_channel_id }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "IOS_XE"
+
+    - name: Enable Physical Interfaces and set description (IOS)
+      cisco.ios.ios_interfaces:
+         config:
+          - name: "{{ 'port-channel%s' % item.port_channel_id }}"
+            description: "{{ item.po_description if item.po_description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "IOS_XE"
+
+    - name: Create PO (NXOS)
+      cisco.nxos.nxos_lag_interfaces:
+        config:
+          - name: "{{ 'port-channel%s' % item.port_channel_id | int }}"
+            members:
+            - member: "{{ item.interface }}"
+              mode: "{{ item.mode }}"
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == 'absent' else omit }}"
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "NXOS"
+
+    - name: Enable PO and set Description (NXOS)
+      cisco.nxos.nxos_interfaces:
+        config:
+          - name: "{{ 'port-channel%s' % item.port_channel_id | int }}"
+            description: "{{ item.po_description if item.description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "NXOS"
+
+    - name: Enable Physical Interfaces and set description (NXOS)
+      cisco.nxos.nxos_interfaces:
+        config:
+          - name: "{{ item.interface }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "NXOS"
+
+    - name: Create PO (IOS_XR)
+      cisco.iosxr.iosxr_lag_interfaces:
+        config:
+          - name: "{{ item.key }}"
+            members: "{{ item.po_interfaces }}"
+            mode: "{{ item.mode }}"
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == 'absent' else omit }}"
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "IOS_XR"
+
+    - name: Enable PO and set Description (IOS_XR)
+      cisco.iosxr.iosxr_interfaces:
+        config:
+          - name: "{{ item.key }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel }}"
+      when: port_channel is defined and item.device_os == "IOS_XR"
+
+      ############
+      ###ansible is always sending no shut to the Bundle... Because of this behaviour this task always appear as changed
+      ##########
+    - name: Enable Physical Interfaces and set description (IOS_XR)
+      cisco.iosxr.iosxr_interfaces:
+        config:
+          - name: "{{ item.key }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            enabled: true
+      loop: "{{ port_channel  }}"
+      when: port_channel is defined and item.device_os == "IOS_XR"
+
+

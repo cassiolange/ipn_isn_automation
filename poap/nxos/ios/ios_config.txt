@@ -1,0 +1,22 @@
+!
+ip dhcp pool LAB
+ network 10.12.81.0 255.255.255.0
+ default-router 10.12.81.1
+ domain-name cassio.lab
+ dns-server 10.12.81.1
+ option 67 ascii "poap.py"
+ option 150 ip 10.122.168.109
+ ipv6 dhcp client request vendor
+ lease 0 8
+!
+tftp-server bootflash:poap/poap.py
+tftp-server bootflash:poap.py
+!
+ip scp server enable
+!
+mkdir bootflash:poap
+!
+####copy files
+#copy scp://root:1q2w3e4r@10.0.0.22//var/lib/tftpboot/poap.py bootflash:poap/
+#copy scp://root:1q2w3e4r@10.0.0.22//var/lib/tftpboot/poap.py.md5 bootflash:poap/
+!

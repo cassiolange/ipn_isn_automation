@@ -1,0 +1,14 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Manage NXOS Features
+  gather_facts: false
+  hosts: nxos
+  tasks:
+
+    - name: NXOS Features
+      cisco.nxos.nxos_feature:
+          feature: "{{ item.feature }}"
+          state: "{{ 'enabled' if item.status == 'present' else 'disabled' if item.status == 'absent' else omit }}"
+      loop: "{{ nxos_features  }}"
+      when: nxos_features is defined

@@ -1,0 +1,119 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Configure Routing - Multicast
+  gather_facts: false
+  hosts:  all
+  tasks:
+
+    - name: Configure Interface PIM (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - ip pim sparse-mode
+        parents: interface {{ item.key }}
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.pim == "Yes" and item.device_os == "IOS_XE"
+
+    - name: Configure Interface PIM (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - ip pim sparse-mode
+        parents: interface {{ item.key }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.pim == "Yes" and item.device_os == "IOS_XE"
+
+    - name: Create RP Access-List (IOS_XE)
+      cisco.ios.ios_config:
+        lines:
+          - permit {{ item.group }}
+        parents: ip access-list standard AC_IPV4_MULTICAST_GROUP
+      loop: "{{ rp }}"
+      when: rp is defined and item.static is defined and item.device_os == "IOS_XE"
+
+    - name: Set RP Static RP (IOS_XE)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'ip multicast-routing vrf %s distributed' % item.vrf if item.vrf is defined else 'ip multicast-routing vrf distributed' }}"
+          - "{{ 'ip pim bidir-enable' if item.bidir == 'Yes' }}"
+          - "{{ 'ip pim vrf %s rp-address %s AC_IPV4_MULTICAST_GROUP bidir' % (item.vrf, item.static) if (item.bidir == 'Yes' and item.vrf is defined) else 'ip pim vrf %s rp-address %s AC_IPV4_MULTICAST_GROUP' % (item.vrf, item.static) if (item.bidir == 'No' and item.vrf is defined) else 'ip pim %s rp-address %s AC_IPV4_MULTICAST_GROUP bidir' % (item.static, item.group) if (item.bidir == 'Yes' and item.vrf is not defined) else 'ip pim %s rp-address %s AC_IPV4_MULTICAST_GROUP' % (item.static, item.group) if (item.bidir == 'No' and item.vrf is not defined) }}"
+      loop: "{{ rp }}"
+      when: rp is defined and item.static is defined and item.device_os == "IOS_XE"
+
+    - name: save running to startup when modified
+      cisco.ios.ios_config:
+        save_when: modified
+      when: inventory_hostname in groups['routers_ios'] or inventory_hostname in groups['switches_ios']
+
+    - name: Configure Loopback PIM (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - ip pim sparse-mode
+        parents: "{{ 'interface loopback%s' % item.lo_id }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.pim == "Yes" and item.device_os == "NXOS"
+
+    - name: Configure Interface PIM (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - ip pim sparse-mode
+        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'interface %s' % item.interface }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.pim == "Yes" and item.device_os == "NXOS"
+
+    - name: Set Static RP (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - "{{ 'ip pim rp-address %s group-list %s bidir' % (item.static_rp, item.multicast_group) if item.bidir == 'Yes' else 'ip pim rp-address %s group-list %s' % (item.static_rp, item.multicast_group) }}"
+        parents: "{{ 'vrf context %s' % item.vrf if item.vrf is defined }}"
+      loop: "{{ rp }}"
+      when: rp is defined and item.static_rp is defined and item.device_os == "NXOS"
+
+    - name: save running to startup when modified  (NXOS)
+      cisco.nxos.nxos_config:
+        save_when: modified
+      when: inventory_hostname in groups['nxos']
+
+    - name: Configure Loopback PIM (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - interface {{ item.key }} enable
+        parents: "{{ 'multicast-routing vrf %s address-family ipv4' % item.vrf if item.vrf is defined else 'multicast-routing address-family ipv4' }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.pim == 'Yes' and item.device_os == "IOS_XR"
+
+    - name: Configure Interface PIM (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - interface {{ item.key }} enable
+        parents: "{{ 'multicast-routing vrf %s address-family ipv4' % item.vrf if item.vrf is defined else 'multicast-routing address-family ipv4' }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.pim == 'Yes' and item.device_os == "IOS_XR"
+
+    - name: Set RP Static RP (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines:
+          - "{{ 'ipv4 access-list AC_IPV4_MULTICAST_GROUP 10 permit ipv4 %s any' % item.group}}"
+          - "{{ 'router pim vrf %s address-family ipv4 rp-address %s AC_IPV4_MULTICAST_GROUP bidir' % (item.vrf, item.static) if (item.bidir == 'Yes' and item.vrf is defined) else 'router pim vrf %s rp-address address-family ipv4 %s AC_IPV4_MULTICAST_GROUP' % (item.vrf, item.static) if (item.bidir == 'No' and item.vrf is defined) else 'router pim %s address-family ipv4 rp-address %s AC_IPV4_MULTICAST_GROUP bidir' % (item.static, item.group) if (item.bidir == 'Yes' and item.vrf is not defined) else 'router pim %s address-family ipv4 rp-address %s AC_IPV4_MULTICAST_GROUP' % (item.static, item.group) if (item.bidir == 'No' and item.vrf is not defined) }}"
+      loop: "{{ rp }}"
+      when: rp is defined and item.static is defined and item.device_os == "IOS_XR"
+
+
+
+#    - name: Create AS PATH Access List, IP Prefix-lists, Create BGP Proccess, Set BGP Router-ID, Create Templates
+#      cisco.ios.ios_config:
+#        src: create_bgp_rules.j2
+#      when: bgp is defined
+
+#    - name: Add BGP Nei neighbors
+#      cisco.ios.ios_config:
+#        src: add_bgp_neighbors.j2
+#      when: bgp is defined
+
+#    - name: Add BGP Prefixes
+#      cisco.ios.ios_config:
+#        src: add_bgp_prefixes.j2
+#      when: bgp is defined
+
+#    - name: save running to startup when modified
+#      cisco.ios.ios_config:
+#        save_when: modified

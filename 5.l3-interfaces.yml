@@ -1,0 +1,186 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Interfaces
+  gather_facts: false
+  hosts: all
+  tasks:
+######
+#####problem with IOS_XR BUNDLE-ETHER :(
+######need change the scripts to no utilize the iosxr_interfaces
+
+    - name: Configure Switches Interfaces as Layer 3 (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - no switchport
+        parents: interface {{ item.interface }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.device_type == 'switch' and item.device_os == 'IOS_XE'
+
+    - name: Set the MTU, Description and Bring up the Interface (IOS)
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ item.interface }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            mtu: "{{ item.mtu if item.mtu is defined else omit }}"
+            enabled: true
+        state: merged
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.device_os == "IOS_XE"
+
+    - name: Create sub-interfaces (IOS_XE)
+      cisco.ios.ios_config:
+        lines:
+          - encapsulation dot1Q {{ item.dot1q | int  }}
+        parents:  "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "IOS_XE"
+
+    - name: Configure Sub interfaces - Status and Descriptions (IOS)
+      cisco.ios.ios_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int ) }}"
+            enabled: true
+            description: "{{ item.description if item.description is defined else omit }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "IOS_XE"
+
+    - name: Add Interfaces to the VRFs
+      cisco.ios.ios_config:
+        lines:
+          - vrf forwarding {{ item.vrf }}
+        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int) if item.dot1q is defined else 'interface %s' %item.interface }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.vrf is defined and item.device_os == "IOS_XE"
+
+    - name: Configure Interface IP Address (IOS)
+      ios_l3_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int) if item.dot1q is defined else item.interface }}"
+            ipv4:
+              - address: "{{ item.ip_address }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.device_os == "IOS_XE"
+
+    - name: Set DHCP Relay (IOS_XE)
+      cisco.ios.ios_config:
+        src: add_interface_dhcp_relay_ios.j2
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.relay is defined and item.device_os == "IOS_XE"
+
+    - name: save running to startup when modified (IOS_XE)
+      cisco.ios.ios_config:
+        save_when: modified
+      when: inventory_hostname in groups['routers_ios'] or inventory_hostname in groups['switches_ios']
+
+
+    - name: Configure Switches Interfaces as Layer 3, Set the MTU, Description and Bring up the Interface (NXOS)
+      cisco.nxos.nxos_interfaces:
+        config:
+        - name: "{{ item.interface }}"
+          description: "{{ item.description if item.description is defined else omit }}"
+          mtu: "{{ item.mtu | int if item.mtu is defined else omit }}"
+          mode: layer3
+          enabled: true
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == absent else omit }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.device_os == "NXOS"
+
+    - name: Create Sub-Interfaces (NXOS)
+      cisco.nxos.nxos_l3_interfaces:
+        config:
+        - name: "{{ '%s.%s' % (item.interface, item.dot1q | int) }}"
+          dot1q: "{{ item.dot1q | int }}"
+          redirects: false
+          unreachables: false
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == absent else omit }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "NXOS"
+
+    - name: Set Interface VRF (NXOS)
+      cisco.nxos.nxos_vrf_interface:
+        interface: "{{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}"
+        vrf: "{{ item.vrf }}"
+        state: "{{ item.status if item.status is defined else omit }}"
+      loop: "{{ interfaces  }}"
+      when: interfaces is defined and item.vrf is defined and item.device_os == "NXOS"
+
+    - name: Configure Interface IP Address (NXOS)
+      cisco.nxos.nxos_l3_interfaces:
+        config:
+          - name: "{{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}"
+            ipv4:
+            - address: "{{ item.ip_address }}"
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == absent else omit }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.ip_address is defined and item.device_os == "NXOS"
+
+    - name: Set description and Bring up the Sub-Interface (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+        - no shutdown
+        - "{{ 'description %s' % item.description if item.description is defined }}"
+        parents: interface {{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "NXOS"
+
+    - name: Set DHCP Relay (NXOS)
+      cisco.nxos.nxos_config:
+        src: add_interface_dhcp_relay_nxos.j2
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dhcp_relay is defined and item.device_os == "NXOS"
+
+    - name: save running to startup when modified (NXOS)
+      cisco.nxos.nxos_config:
+        save_when: modified
+      when: inventory_hostname in groups['nxos']
+
+    - name: Set the MTU, Description and Bring up the Interface (IOS_XR)
+      cisco.iosxr.iosxr_interfaces:
+        config:
+          - name: "{{ item.parentinterface }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+            mtu: "{{ item.mtu if item.mtu is defined else omit }}"
+            enabled: true
+        state: merged
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.device_os == "IOS_XR"
+
+    - name: Create sub-interfaces (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines: encapsulation dot1q {{ item.dot1q }}
+        parents: interface {{ item.key }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "IOS_XR"
+
+    - name: Configure Sub interfaces - Status and Descriptions (IOS_XR)
+      cisco.iosxr.iosxr_interfaces:
+        config:
+          - name: "{{ item.key }}"
+            enabled: true
+            mtu: "{{ item.mtu if item.mtu is defined else omit }}"
+            description: "{{ item.description if item.description is defined else omit }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.dot1q is defined and item.device_os == "IOS_XR"
+
+    - name: Add Interfaces to the VRFs (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        lines: vrf {{ item.vrf }}
+        parents: interface {{ item.key }}
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.vrf is defined and item.device_os == "IOS_XR"
+
+    - name: Configure Interface IP Address (IOS_XR)
+      cisco.iosxr.iosxr_l3_interfaces:
+        config:
+          - name: "{{ item.key }}"
+            ipv4:
+              - address: "{{ item.ip_address }}"
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.device_os == "IOS_XR"
+
+    - name: Set DHCP Relay (IOS_XR)
+      cisco.nxos.nxos_config:
+        src: add_interface_dhcp_relay_ios_xr.j2
+      loop: "{{ interfaces }}"
+      when: interfaces is defined and item.relay is defined and device_os == "IOS_XR"

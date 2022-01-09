@@ -1,0 +1,22 @@
+{% for item in loopbacks %}
+interface {{ item }}
+ ip ospf {{ loopbacks[item].ospf_id }} area {{ loopbacks[item].ospf_area }}
+{% endfor %}
+{% for item in interfaces %}
+{% if interfaces[item].ospf_enabled is defined and interfaces[item].ospf_enabled == 'Yes'  %}
+interface {{ item }}
+ ip ospf {{ interfaces[item].ospf_id }} area {{ interfaces[item].ospf_area }}
+ ip ospf network {{ interfaces[item].ospf_link_type }}
+{% if interfaces[item].ospf_password is defined %}
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 7 {{ interfaces[item].ospf_password }}
+{% endif %}
+{% if interfaces[item].bfd == 'Yes'  and interfaces[item].ospf_passive_interface =='No' %}
+ ip ospf bfd
+{% endif %}
+{% if interfaces[item].ospf_passive_interface == 'No' %}
+router ospf {{ interfaces[item].ospf_id }} vrf {{ interfaces[item].vrf }}
+ no passive-interface {{ item }}
+{% endif %}
+{% endif %}
+{% endfor %}

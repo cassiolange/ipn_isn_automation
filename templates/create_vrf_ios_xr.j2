@@ -1,0 +1,8 @@
+vrf {{ item.key }}
+{% if item.value.ipv4 == 'Yes' %}
+ address-family ipv4 unicast
+{% endif %}
+{% if item.value.ipv6 == 'Yes' %}
+ address-family ipv6 unicast
+{% endif %}
+!

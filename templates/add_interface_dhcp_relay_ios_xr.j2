@@ -1,0 +1,5 @@
+{% for i in item.value.relay %}
+dhcp ipv4 profile DHCP_RELAY_PROFILE relay helper-address vrf {{ item.value.vrf }} {{ i }}
+{% endfor %}
+dhcp ipv4 interface {{ item.key }} relay profile DHCP_RELAY_PROFILE
+

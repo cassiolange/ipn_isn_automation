@@ -1,0 +1,96 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Loopback Configuration
+  gather_facts: false
+  hosts: all
+  tasks:
+
+    - name: Manage loopbacks (IOS)
+      cisco.ios.ios_interfaces:
+        config:
+        - name: "{{ 'loopback%s' % item.lo_id}}"
+          enabled: True
+        state: "{{ 'merged' if item.status is defined and item.status == 'present' else 'deleted' if item.status is defined and item.status == absent else omit }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.device_os == "IOS_XE"
+
+    - name: Add Interface Loopbacks to VRFS (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - vrf forwarding {{ item.vrf }}
+        parents: "{{ 'interface Loopback%s' % item.lo_id }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.vrf is defined and item.status == 'present' and item.device_os == "IOS_XE"
+
+    - name: ADD IP addresses to the Loopbacks (IOS)
+      cisco.ios.ios_l3_interfaces:
+        config:
+          - name: "{{ 'Loopback%s' % item.lo_id }}"
+            ipv4:
+              - address: "{{ item.ip_address | ansible.netcommon.ipaddr('address')}} {{ item.ip_address | ansible.netcommon.ipaddr('netmask') }}"
+      loop: "{{ loopbacks  }}"
+      when: loopbacks is defined and item.status == 'present' and item.device_os == "IOS_XE"
+
+    - name: Manage loopbacks (NXOS)
+      cisco.nxos.nxos_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id }}"
+            description:  "{{ item.description if item.description is defined else omit}}"
+            enabled: true
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == absent else omit }}"
+      loop: "{{ loopbacks  }}"
+      when: loopbacks is defined and item.device_os == "NXOS"
+
+    - name: Add Interface Loopbacks to VRFS (NXOS)
+      cisco.nxos.nxos_vrf_interface:
+        vrf: "{{ item.vrf }}"
+        interface: "{{ 'loopback%s' % item.lo_id }}"
+      loop: "{{ loopbacks  }}"
+      when: loopbacks is defined and item.vrf is defined and item.status == 'present' and item.device_os == "NXOS"
+
+    - name: ADD IP addresses to the Loopbacks (NXOS)
+      cisco.nxos.nxos_l3_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id }}"
+            ipv4:
+              - address: "{{ item.ip_address }}"
+      loop: "{{ loopbacks  }}"
+      when: loopbacks is defined and item.status == 'present' and item.device_os == "NXOS"
+
+    - name: Manage loopbacks (IOS_XR)
+      cisco.iosxr.iosxr_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id }}"
+            description: "{{ item.description if item.description is defined else omit}}"
+            enabled: true
+        state: "{{ 'merged' if item.status == 'present' else 'deleted' if item.status == absent else omit }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.device_os == "IOS_XR"
+
+    - name: Add Interface Loopbacks to VRFS (IOS_XR)
+      cisco.iosxr.iosxr_config:
+        src: add_interface_to_vrf_ios_xr.j2
+      loop: "{{ loopbacks  }}"
+      when: loopbacks is defined and item.vrf is defined and item.status == 'present' and item.device_os == "IOS_XR"
+
+    - name: ADD IP addresses to the Loopbacks (IOS_XR)
+      cisco.iosxr.iosxr_l3_interfaces:
+        config:
+          - name: "{{ 'loopback%s' % item.lo_id }}"
+            ipv4:
+              - address: "{{ item.ip_address }}"
+      loop: "{{ loopbacks }}"
+      when: loopbacks is defined and item.status == 'present' and item.device_os == "IOS_XR"
+
+    #- name: Save config when modified (IOS)
+    #  cisco.ios.ios_config:
+    #    save_when: modified
+    #  when: loopbacks is defined and device_os == "IOS_XE"
+
+    #- name: Save config when modified (NXOS)
+    #  cisco.nxos.nxos_config:
+    #    save_when: modified
+    #  when: loopbacks is defined and device_os == "NXOS"
+
+

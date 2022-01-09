@@ -1,0 +1,30 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Manage VRFs
+  gather_facts: false
+  hosts: all
+  tasks:
+
+    - name: VRFs (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - rd {{ item.rd }}
+          - "{{ 'address-family ipv4' if item.ipv4 is defined and item.ipv4 == 'Yes' }}"
+          - "{{ 'address-family ipv6' if item.ipv6 is defined and item.ipv4 == 'No' }}"
+        parents: vrf definition {{ item.vrf }}
+      loop: "{{ devices_vrfs  }}"
+      when: devices_vrfs is defined and item.device_os == "IOS_XE" and item.status == 'present'
+
+    - name: VRFs (NXOS)
+      cisco.nxos.nxos_vrf:
+          name: "{{ item.vrf }}"
+          state: "{{ item.status }}"
+      loop: "{{ devices_vrfs  }}"
+      when: devices_vrfs is defined and item.device_os == "NXOS"
+
+    - name: VRFs (IOS XR)
+      cisco.iosxr.iosxr_config:
+        src: create_vrf_ios_xr.j2
+      loop: "{{ devices_vrfs  }}"
+      when: devices_vrfs is defined and item.device_os == "IOS_XR" and item.value.status == 'present'

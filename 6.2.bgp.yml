@@ -1,0 +1,188 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Configure BGP
+  gather_facts: false
+  hosts: all
+
+  tasks:
+    - name: Create AS PATH Access List (IOS)
+      cisco.ios.ios_config:
+        lines: "{{ 'ip as-path access-list %s %s %s' % (item.list_number, item.action, item.regular_expression) }}"
+      loop: "{{ as_path_access_list }}"
+      when: as_path_access_list is defined and item.device_os == "IOS_XE"
+
+    - name: Create Prefix lists (IOS)
+      cisco.ios.ios_prefix_lists:
+        config:
+          - afi: "{{ item.address_family }}"
+            prefix_lists:
+              - name: "{{ item.name }}"
+                description: "{{ item.description if item.description is defined else omit }}"
+                entries:
+                  - action: "{{ item.action }}"
+                    prefix: "{{ item.prefix }}"
+                    le: "{{ item.le | int if item.le is defined and item.le != '' else omit }}"
+                    ge: "{{ item.ge | int if item.ge is defined and item.ge != '' else omit }}"
+                    sequence: "{{ item.sequence }}"
+      loop: "{{ prefix_list }}"
+      when: prefix_list is defined and item.device_os == "IOS_XE"
+
+    - name: Create Route-Maps (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'match as-path %s' % item.as_path_access_list_number | int if item.as_path_access_list_number is defined }}"
+          - "{{ 'match ip address prefix-list %s' % item.prefix_list if item.prefix_list is defined }}"
+          - "{{ 'set local-preference %s' % item.local_preference | int if item.local_preference is defined }}"
+          - "{{ 'set as-path prepend %s' % item.prepend | int if item.prepend is defined }}"
+        parents: route-map {{ item.name }} {{ item.action }} {{ item.order | int }}
+      loop: "{{ route_map }}"
+      when: route_map is defined and item.device_os == "IOS_XE"
+
+    - name: Create BGP Process (IOS)
+      cisco.ios.ios_config:
+        src: create_bgp_processes_ios.j2
+      loop: "{{ bgp }}"
+      when: bgp is defined and item.device_os == "IOS_XE"
+
+    - name: Create BGP Peer Session
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'password 7 %s' % item.password if item.password is defined }}"
+          - "{{ 'remote-as %s' % item.remote_as | int if item.remote_as is defined }}"
+          - "{{ 'update-source Loopback%s' % item.loopback_id | int if item.update_source_loopback == 'Yes' }}"
+          - "{{ 'fall-over bfd' if item.bfd == 'Yes'}}"
+        parents:
+          - router bgp {{ item.as }}
+          - template peer-session {{ item.name }}
+      loop: "{{ bgp_peer_session }}"
+      when: bgp_peer_session is defined and item.device_os == "IOS_XE"
+
+    - name: Create BGP Peer Policies (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ item.option if item.option is defined }}"
+        parents:
+          - router bgp {{ item.as }}
+          - template peer-policy {{ item.name }}
+      loop: "{{ bgp_peer_policy }}"
+      when: bgp_peer_policy is defined and item.device_os == "IOS_XE"
+
+    - name: Add BGP Neighbors (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'neighbor %s remote-as %s' % (item.neighbor_ip_address, item.remote_as | int) }}"
+          - "{{ 'neighbor %s inherit peer-session %s' % (item.neighbor_ip_address, item.bgp_peer_session_template) if item.bgp_peer_session_template is defined}}"
+          - "{{ 'neighbor %s inherit peer-policy %s' % (item.neighbor_ip_address, item.bgp_peer_policy) if item.bgp_peer_policy is defined}}"
+          - "{{ 'neighbor %s password 7 %s' % (item.neighbor_ip_address, item.password) if item.password is defined}}"
+          - "{{ 'neighbor %s fall-over bfd' % item.neighbor_ip_address if item.bfd == 'Yes' }}"
+          - "{{ 'neighbor %s route-map %s in' % (item.neighbor_ip_address, item.inbound_route_map) if item.inbound_route_map is defined }}"
+          - "{{ 'neighbor %s route-map %s out' % (item.neighbor_ip_address, item.outbound_route_map) if item.outbound_route_map is defined }}"
+          - "{{ 'neighbor %s advertise-map %s exist-map %s' % (item.neighbor_ip_address, item.advertise_map, item.exit_map) if item.advertise_map is defined and item.exit_map is defined }}"
+        parents:
+          - router bgp {{ item.as }}
+          - "{{ 'address-family ipv4 vrf %s' % item.vrf if item.vrf is defined }}"
+      loop: "{{ bgp_neighbor }}"
+      when: bgp_neighbor is defined and item.device_os == "IOS_XE"
+
+    - name: Add Prefixes to BGP (IOS)
+      cisco.ios.ios_config:
+        lines:
+          - "{{ 'network %s mask %s' % (item.prefix | ansible.netcommon.ipaddr('network'), item.prefix | ansible.netcommon.ipaddr('netmask')) if item.prefix | ansible.netcommon.ipaddr('netmask') != '255.0.0.0' and item.prefix | ansible.netcommon.ipaddr('netmask') != '255.255.0.0' and item.prefix | ansible.netcommon.ipaddr('netmask') != '255.255.255.0' else 'network %s' % item.prefix | ansible.netcommon.ipaddr('network')}}"
+        parents:
+          - router bgp {{ item.as }}
+          - "{{ 'address-family ipv4 vrf %s' % item.vrf if item.vrf is defined else 'address-family ipv4' }}"
+      loop: "{{ bgp_prefixes }}"
+      when: bgp_prefixes is defined and item.device_os == "IOS_XE"
+
+#    - name: save running to startup when modified
+#      cisco.ios.ios_config:
+#        save_when: modified
+
+
+    - name: Create AS PATH Access List (NXOS)
+      cisco.nxos.nxos_config:
+        lines: "{{ 'ip as-path access-list %s seq %s %s \"%s\"' % (item.name, item.sequence, item.action, item.regular_expression) }}"
+      loop: "{{ as_path_access_list }}"
+      when: as_path_access_list is defined and item.device_os == "NXOS"
+
+    - name: Create Prefix lists (NXOS)
+      cisco.nxos.nxos_prefix_lists:
+        config:
+          - afi: "{{ item.address_family }}"
+            prefix_lists:
+              - name: "{{ item.name }}"
+                description: "{{ item.description if item.description is defined else omit }}"
+                entries:
+                  - action: "{{ item.action }}"
+                    prefix: "{{ item.prefix }}"
+                    le: "{{ item.le | int if item.le is defined and item.le != '' else omit }}"
+                    ge: "{{ item.ge | int if item.ge is defined and item.ge != '' else omit }}"
+                    sequence: "{{ item.sequence }}"
+      loop: "{{ prefix_list }}"
+      when: prefix_list is defined and item.device_os == "NXOS"
+
+    - name: Create Route-Maps (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - "{{ 'match as-path %s' % item.as_path_access_list if item.as_path_access_list is defined }}"
+          - "{{ 'match ip address prefix-list %s' % item.prefix_list if item.prefix_list is defined }}"
+          - "{{ 'set local-preference %s' % item.local_preference | int if item.local_preference is defined }}"
+#          - "{{ 'set as-path prepend last-as %s' % item.prepend | int if item.prepend is defined }}"
+        parents: route-map {{ item.name }} {{ item.action }} {{ item.order | int }}
+      loop: "{{ route_map }}"
+      when: route_map is defined and item.device_os == "NXOS"
+
+    - name: Set Prepend Route-Maps
+      cisco.nxos.nxos_config:
+        src: route_map_prepend.j2
+      loop: "{{ route_map }}"
+      when: route_map is defined and item.device_os == "NXOS" and item.prepend is defined and item.prepend !=''
+
+    - name: Create BGP Process (NXOS)
+      cisco.nxos.nxos_config:
+        src: create_bgp_processes_nxos.j2
+      loop: "{{ bgp }}"
+      when: bgp is defined and item.device_os == "NXOS"
+
+    - name: Create BGP Peer Session
+      cisco.nxos.nxos_config:
+        lines:
+          - "{{ 'password 3 %s' % item.password if item.password is defined }}"
+          - "{{ 'remote-as %s' % item.remote_as | int if item.remote_as is defined }}"
+          - "{{ 'update-source loopback%s' % item.loopback_id | int if item.update_source_loopback == 'Yes' }}"
+          - "{{ 'bfd' if item.bfd == 'Yes'}}"
+        parents:
+          - router bgp {{ item.as }}
+          - template peer-session {{ item.name }}
+      loop: "{{ bgp_peer_session }}"
+      when: bgp_peer_session is defined and item.device_os == "NXOS"
+
+    - name: Create BGP Peer Policies (NXOS)
+      cisco.nxos.nxos_config:
+        lines:
+          - "{{ item.option if item.option is defined }}"
+        parents:
+          - router bgp {{ item.as }}
+          - template peer-policy {{ item.name }}
+      loop: "{{ bgp_peer_policy }}"
+      when: bgp_peer_policy is defined and item.device_os == "NXOS"
+
+    - name: Add BGP Neighbors (NXOS)
+      cisco.nxos.nxos_config:
+        src: create_bgp_neighbor_nxos.j2
+      loop: "{{ bgp_neighbor }}"
+      when: bgp_neighbor is defined and item.device_os == "NXOS"
+
+    - name: BGP Prefixes
+      cisco.nxos.nxos_bgp_address_family:
+        config:
+          as_number: "{{ item.as }}"
+          address_family:
+            - afi: ipv4
+              safi: unicast
+              vrf: "{{ item.vrf }}"
+              networks:
+                - prefix: "{{ item.prefix }}"
+      loop: "{{ bgp_prefixes }}"
+      when: bgp_prefixes is defined and item.device_os == "NXOS"

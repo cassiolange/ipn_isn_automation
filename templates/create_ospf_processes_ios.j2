@@ -1,0 +1,14 @@
+{% if item.vrf is defined %}
+router ospf {{ item.ospf_id }} vrf {{ item.vrf }}
+{% else %}
+router ospf {{ item.ospf_id }}
+{% endif %}
+ router-id {{ item.ospf_router_id }}
+ max-metric router-lsa on-startup 110
+{% if item.reference_bandwidth is defined %}
+ auto-cost reference-bandwidth {{ item.reference_bandwidth }}
+{% endif %}
+{% if item.vrf is defined %}
+ capability vrf-lite
+{% endif %}
+ passive-interface default

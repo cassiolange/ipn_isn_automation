@@ -1,0 +1,9 @@
+router bgp {{ item.as }}
+ no bgp default ipv4-unicast
+{% if item.vrf is not defined %}
+ bgp router-id {{ item.bgp_router_id }}
+ !
+{% else %}
+ address-family ipv4 vrf {{ item.vrf }}
+  bgp router-id {{  item.bgp_router_id }}
+{% endif %}
