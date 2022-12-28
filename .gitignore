@@ -280,5 +280,5 @@ fix_po_bring_up_nxos.txt
 references.txt
 bugs
 hosts.yml
-!ipn.xlsx
+!spreadsheets/ipn.xlsx
 generate_yaml_config.py
