@@ -120,6 +120,8 @@
         lines:
         - no shutdown
         - "{{ 'description %s' % item.description if item.description is defined }}"
+        - no ip redirects
+        - no ipv6 redirects
         parents: interface {{ '%s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else item.interface }}
       loop: "{{ interfaces }}"
       when: interfaces is defined and item.dot1q is defined and item.device_os == "NXOS"
