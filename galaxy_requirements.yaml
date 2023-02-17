@@ -1,0 +1,5 @@
+collections:
+  - ansible.netcommon
+  - cisco.ios
+  - cisco.iosxr
+  - cisco.nxos

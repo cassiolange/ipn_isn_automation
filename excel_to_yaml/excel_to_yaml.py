@@ -102,12 +102,12 @@ def generate_yaml():
 
     #print(yaml_data)
     for i in yaml_data:
-        file = open('../host_vars/'+i+'.yml','w')
+        file = open('host_vars/'+i+'.yml','w')
         yaml.safe_dump(yaml_data[i], file)
         #print(routers[i])
         file.close()
 
-    file = open('../hosts.yml','w')
+    file = open('hosts.yml','w')
     yaml.safe_dump(hosts, file)
     file.close()
 
