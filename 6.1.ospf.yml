@@ -144,7 +144,7 @@
                   message_digest: "{{ true if item.ospf_password is defined else omit }}"
                 message_digest_key:
                   key_id: "{{ '1' if item.ospf_password is defined else omit }}"
-                  encryption: "{{ '0' if item.ospf_password is defined else omit }}"
+                  encryption: "{{ '3' if item.ospf_password is defined else omit }}"
                   key: "{{ item.ospf_password if item.ospf_password is defined else omit }}"
                 network: "{{ item.ospf_link_type if item.ospf_link_type is defined }}"
                 passive_interface: "{{ item.ospf_passive_interface if item.ospf_passive_interface is defined and item.ospf_passive_interface == 'No' else omit }}"
