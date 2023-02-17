@@ -6,7 +6,7 @@ pip install -r python_requirements.txt
 3) install the ansible galaxy module<br>
 ansible-galaxy install -r galaxy_requirements.yaml
 4) Copy the excel file to the spreadsheet folder
-5) Execute the playbooks 
+5) Execute the playbooks<br>
 ansible-playbook 0.management.yml<br>
 ansible-playbook 1.enable_nxos_features.yml<br>
 ansible-playbook 2.po.yml<br>
