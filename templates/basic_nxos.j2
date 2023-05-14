@@ -4,6 +4,9 @@ no ip domain-lookup
 !
 interface {{ item.mgmt_int }}
  ip address {{ item.mgmt_ip }}
+{% if item.mgmt_description is defined and item.mgmt_description != ''  %}
+ description {{ item.mgmt_description }}
+{% endif %}
  no shutdown
 !
 no password strength-check

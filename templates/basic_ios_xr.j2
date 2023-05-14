@@ -6,6 +6,9 @@ vrf {{ item.mgmt_vrf }}
 interface {{ item.mgmt_int }}
  vrf {{ item.mgmt_vrf }}
  ip address {{ item.mgmt_ip }}
+{% if item.mgmt_description is defined and item.mgmt_description != ''  %}
+ description {{ item.mgmt_description }}
+{% endif %}
  no shutdown
 !
 router static vrf {{item. mgmt_vrf }} address-family ipv4 unicast 0.0.0.0/0 {{ item.mgmt_gw }}

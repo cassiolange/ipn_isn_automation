@@ -11,6 +11,9 @@ int {{ item.mgmt_int }}
 {% endif %}
  vrf forwarding {{ item.mgmt_vrf }}
  ip address {{ item.mgmt_ip | ansible.netcommon.ipaddr('address')}} {{ item.mgmt_ip | ansible.netcommon.ipaddr('netmask') }}
+{% if item.mgmt_description is defined and item.mgmt_description != ''  %}
+ description {{ item.mgmt_description }}
+{% endif %}
  no shutdown
 !
 ip route vrf {{ item.mgmt_vrf }} 0.0.0.0 0.0.0.0 {{ item.mgmt_gw }}
