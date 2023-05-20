@@ -8,9 +8,15 @@
 
     - name: Configure QoS Class-Maps (NXOS)
       cisco.nxos.nxos_config:
-        src: nxos/class_maps.j2
+        src: nxos/class_map_qos.j2
       loop: "{{ class_map_qos }}"
       when: class_map_qos is defined and inventory_hostname in groups['nxos']
+
+    - name: Configure QoS Policy-Maps Class-Maps (NXOS)
+      cisco.nxos.nxos_config:
+        src: nxos/policy_map_qos.j2
+      loop: "{{ policy_map_qos }}"
+      when: policy_map_qos is defined and inventory_hostname in groups['nxos']
 
 #    - name: Configure Interface PIM (NXOS)
 #      cisco.nxos.nxos_config:

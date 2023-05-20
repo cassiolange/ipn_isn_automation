@@ -1,0 +1,4 @@
+policy-map type qos {{ item.name }}
+ class {{ item.class_map_name }}
+  set qos-group {{ item.qos_group | int }}
+!
