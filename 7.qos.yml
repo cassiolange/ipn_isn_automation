@@ -1,0 +1,34 @@
+---
+- ansible.builtin.import_playbook: update.yml
+
+- name : Configure QoS
+  gather_facts: false
+  hosts:  all
+  tasks:
+
+    - name: Configure QoS Class-Maps (NXOS)
+      cisco.nxos.nxos_config:
+        src: nxos/class_maps.j2
+      loop: "{{ class_map_qos }}"
+      when: class_map_qos is defined and inventory_hostname in groups['nxos']
+
+#    - name: Configure Interface PIM (NXOS)
+#      cisco.nxos.nxos_config:
+#        lines:
+#          - ip pim sparse-mode
+#        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'interface %s' % item.interface }}"
+#      loop: "{{ interfaces  }}"
+#      when: interfaces is defined and item.pim == "Yes" and item.device_os == "NXOS"
+#
+#    - name: Set Static RP (NXOS)
+#      cisco.nxos.nxos_config:
+#        lines:
+#          - "{{ 'ip pim rp-address %s group-list %s bidir' % (item.static_rp, item.multicast_group) if item.bidir == 'Yes' else 'ip pim rp-address %s group-list %s' % (item.static_rp, item.multicast_group) }}"
+#        parents: "{{ 'vrf context %s' % item.vrf if item.vrf is defined }}"
+#      loop: "{{ rp }}"
+#      when: rp is defined and item.static_rp is defined and item.device_os == "NXOS"
+#
+#    - name: save running to startup when modified  (NXOS)
+#      cisco.nxos.nxos_config:
+#        save_when: modified
+#      when: inventory_hostname in groups['nxos']
