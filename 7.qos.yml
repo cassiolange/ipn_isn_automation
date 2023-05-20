@@ -6,17 +6,17 @@
   hosts:  all
   tasks:
 
-#    - name: Configure QoS Class-Maps (NXOS)
-#      cisco.nxos.nxos_config:
-#        src: nxos/class_map_qos.j2
-#      loop: "{{ class_map_qos }}"
-#      when: class_map_qos is defined and inventory_hostname in groups['nxos']
-#
-#    - name: Configure QoS Policy-Maps (NXOS)
-#      cisco.nxos.nxos_config:
-#        src: nxos/policy_map_qos.j2
-#      loop: "{{ policy_map_qos }}"
-#      when: policy_map_qos is defined and inventory_hostname in groups['nxos']
+    - name: Configure QoS Class-Maps (NXOS)
+      cisco.nxos.nxos_config:
+        src: nxos/class_map_qos.j2
+      loop: "{{ class_map_qos }}"
+      when: class_map_qos is defined and inventory_hostname in groups['nxos']
+
+    - name: Configure QoS Policy-Maps (NXOS)
+      cisco.nxos.nxos_config:
+        src: nxos/policy_map_qos.j2
+      loop: "{{ policy_map_qos }}"
+      when: policy_map_qos is defined and inventory_hostname in groups['nxos']
 
     - name: Configure QoS Queuing Policy-Maps (NXOS)
       cisco.nxos.nxos_config:
