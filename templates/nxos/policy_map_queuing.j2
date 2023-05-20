@@ -1,0 +1,9 @@
+policy-map type queuing {{ item.name }}
+ class type queuing {{ item.queuing }}
+  {% if item.priority_level is defined and item.priority_level != '' %}
+  priority level {{ item.priority_level | int  }}
+  {% endif %}
+  {% if item.bandwidth is defined and item.bandwidth != '' %}
+  bandwidth remaining percent {{ item.bandwidth | int  }}
+  {% endif %}
+!
