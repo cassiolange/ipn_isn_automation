@@ -6,40 +6,31 @@
   hosts:  all
   tasks:
 
-    - name: Configure QoS Class-Maps (NXOS)
-      cisco.nxos.nxos_config:
-        src: nxos/class_map_qos.j2
-      loop: "{{ class_map_qos }}"
-      when: class_map_qos is defined and inventory_hostname in groups['nxos']
-
-    - name: Configure QoS Policy-Maps (NXOS)
-      cisco.nxos.nxos_config:
-        src: nxos/policy_map_qos.j2
-      loop: "{{ policy_map_qos }}"
-      when: policy_map_qos is defined and inventory_hostname in groups['nxos']
-
-    - name: Configure QoS Queuing Policy-Maps (NXOS)
-      cisco.nxos.nxos_config:
-        src: nxos/policy_map_queuing.j2
-      loop: "{{ policy_map_queuing }}"
-      when: policy_map_queuing is defined and inventory_hostname in groups['nxos']
-
-#    - name: Configure Interface PIM (NXOS)
+#    - name: Configure QoS Class-Maps (NXOS)
 #      cisco.nxos.nxos_config:
-#        lines:
-#          - ip pim sparse-mode
-#        parents: "{{ 'interface %s.%s' % (item.interface, item.dot1q | int ) if item.dot1q is defined else 'interface %s' % item.interface }}"
-#      loop: "{{ interfaces  }}"
-#      when: interfaces is defined and item.pim == "Yes" and item.device_os == "NXOS"
+#        src: nxos/class_map_qos.j2
+#      loop: "{{ class_map_qos }}"
+#      when: class_map_qos is defined and inventory_hostname in groups['nxos']
 #
-#    - name: Set Static RP (NXOS)
+#    - name: Configure QoS Policy-Maps (NXOS)
 #      cisco.nxos.nxos_config:
-#        lines:
-#          - "{{ 'ip pim rp-address %s group-list %s bidir' % (item.static_rp, item.multicast_group) if item.bidir == 'Yes' else 'ip pim rp-address %s group-list %s' % (item.static_rp, item.multicast_group) }}"
-#        parents: "{{ 'vrf context %s' % item.vrf if item.vrf is defined }}"
-#      loop: "{{ rp }}"
-#      when: rp is defined and item.static_rp is defined and item.device_os == "NXOS"
+#        src: nxos/policy_map_qos.j2
+#      loop: "{{ policy_map_qos }}"
+#      when: policy_map_qos is defined and inventory_hostname in groups['nxos']
 #
+#    - name: Configure QoS Queuing Policy-Maps (NXOS)
+#      cisco.nxos.nxos_config:
+#        src: nxos/policy_map_queuing.j2
+#      loop: "{{ policy_map_queuing }}"
+#      when: policy_map_queuing is defined and inventory_hostname in groups['nxos']
+
+    - name: Configure System QoS Queuing Output (NXOS)
+      cisco.nxos.nxos_config:
+        src: nxos/system_qos_queuing_output.j2
+      loop: "{{ system_qos_queuing_output }}"
+      when: system_qos_queuing_output is defined and inventory_hostname in groups['nxos']
+
+
 #    - name: save running to startup when modified  (NXOS)
 #      cisco.nxos.nxos_config:
 #        save_when: modified
