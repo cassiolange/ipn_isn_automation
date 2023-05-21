@@ -38,7 +38,7 @@
       loop: "{{ interfaces }}"
       when: interfaces is defined and inventory_hostname in groups['nxos'] and item.qos_input is defined and item.qos_input != ''
 
-#    - name: save running to startup when modified  (NXOS)
-#      cisco.nxos.nxos_config:
-#        save_when: modified
-#      when: inventory_hostname in groups['nxos']
+    - name: save running to startup when modified  (NXOS)
+      cisco.nxos.nxos_config:
+        save_when: modified
+      when: inventory_hostname in groups['nxos']
